@@ -61,6 +61,7 @@ class FleetVehicleCost(models.Model):
             del(data['odometer'])
         return super(FleetVehicleCost, self).create(data)
 
+
 class FleetVehicleTag(models.Model):
     _name = 'fleet.vehicle.tag'
 
@@ -84,7 +85,7 @@ class FleetVehicleModel(models.Model):
     _order = 'name asc'
 
     name = fields.Char('Model name', required=True)
-    brand_id = fields.Many2one('fleet.vehicle.model.brand', 'Make', required=True, help='Make of the vehicle')
+    brand_id = fields.Many2one('fleet.vehicle.model.brand', 'Make', help='Make of the vehicle')
     vendors = fields.Many2many('res.partner', 'fleet_vehicle_model_vendors', 'model_id', 'partner_id', string='Vendors')
     image = fields.Binary(related='brand_id.image', string="Logo")
     image_medium = fields.Binary(related='brand_id.image_medium', string="Logo (medium)")
@@ -145,13 +146,33 @@ class FleetVehicle(models.Model):
         state = self.env.ref('fleet.vehicle_state_active', raise_if_not_found=False)
         return state and state.id or False
 
-    name = fields.Char(compute="_compute_vehicle_name", store=True)
+    name = fields.Char('Merk Bus')
     active = fields.Boolean(default=True)
     company_id = fields.Many2one('res.company', 'Company')
-    license_plate = fields.Char(required=True, help='License plate number of the vehicle (i = plate number for a car)')
-    vin_sn = fields.Char('Chassis Number', help='Unique number written on the vehicle motor (VIN/SN number)', copy=False)
+    license_plate = fields.Char(string="No Polisi", required=True, help='License plate number of the vehicle (i = plate number for a car)')
+    vin_sn = fields.Char('No Chassis', help='Unique number written on the vehicle motor (VIN/SN number)', copy=False)
     driver_id = fields.Many2one('res.partner', 'Driver', help='Driver of the vehicle')
-    model_id = fields.Many2one('fleet.vehicle.model', 'Model', required=True, help='Model of the vehicle')
+    model_id = fields.Many2one('fleet.vehicle.model', 'Merk Bus', required=True, help='Ini merk bus')
+    
+    tipe_id = fields.Many2one('fleet.vehicle.tipe', 'Tipe Bus', required=True, help='Ini tipe bus')
+    license_body = fields.Char(string="No Body")
+    license_mesin = fields.Char(string="No Mesin")
+    license_uji = fields.Char(string="No Uji")
+    stnk = fields.Char(string="No STNK")
+    bpkb = fields.Char(string="No BPKB")
+    stnk_umur = fields.Date(string="Masa Berlaku STNK")
+    
+    nosk = fields.Char(string="No SK")
+    nokiukp = fields.Char(string="No KIU/KP")
+    nokiukp_umur = fields.Date(string="Masa Berlaku KIU/KP")
+    nokeur = fields.Char(string="No KEUR")
+    nokeur_umur1 = fields.Date(string="Masa Berlaku KEUR I")
+    nokeur_umur2 = fields.Date(string="Masa Berlaku KEUR II")
+    dokumen_line = fields.One2many('dokumen.line', 'vehicle_id', 'Dokumen')
+    
+    sbu_id = fields.Many2one('sbu.unit', string="SBU")
+    unit_id = fields.Many2one('sbu.unit.anak', string="Unit")
+    
     log_fuel = fields.One2many('fleet.vehicle.log.fuel', 'vehicle_id', 'Fuel Logs')
     log_services = fields.One2many('fleet.vehicle.log.services', 'vehicle_id', 'Services Logs')
     log_contracts = fields.One2many('fleet.vehicle.log.contract', 'vehicle_id', 'Contracts')
@@ -161,17 +182,17 @@ class FleetVehicle(models.Model):
     fuel_logs_count = fields.Integer(compute="_compute_count_all", string='Fuel Logs')
     odometer_count = fields.Integer(compute="_compute_count_all", string='Odometer')
     acquisition_date = fields.Date('Acquisition Date', required=False, help='Date when the vehicle has been bought')
-    color = fields.Char(help='Color of the vehicle')
+    color = fields.Char('Warna', help='Color of the vehicle')
     state_id = fields.Many2one('fleet.vehicle.state', 'State', default=_get_default_state, help='Current state of the vehicle', ondelete="set null")
-    location = fields.Char(help='Location of the vehicle (garage, ...)')
-    seats = fields.Integer('Seats Number', help='Number of seats of the vehicle')
-    doors = fields.Integer('Doors Number', help='Number of doors of the vehicle', default=5)
+    location = fields.Many2one('stock.location', string="Lokasi", help='Location of the vehicle (garage, ...)')
+    seats = fields.Integer('Jumlah Kursi', help='Number of seats of the vehicle')
+    doors = fields.Integer('Jumlah Pintu', help='Number of doors of the vehicle', default=5)
     tag_ids = fields.Many2many('fleet.vehicle.tag', 'fleet_vehicle_vehicle_tag_rel', 'vehicle_tag_id', 'tag_id', 'Tags', copy=False)
     odometer = fields.Float(compute='_get_odometer', inverse='_set_odometer', string='Last Odometer', help='Odometer measure of the vehicle at the moment of this log')
     odometer_unit = fields.Selection([('kilometers', 'Kilometers'), ('miles', 'Miles')],
         'Odometer Unit', default='kilometers', help='Unit of the odometer ', required=True)
-    transmission = fields.Selection([('manual', 'Manual'), ('automatic', 'Automatic')], 'Transmission', help='Transmission Used by the vehicle')
-    fuel_type = fields.Selection([('gasoline', 'Gasoline'), ('diesel', 'Diesel'), ('electric', 'Electric'), ('hybrid', 'Hybrid')], 'Fuel Type', help='Fuel Used by the vehicle')
+    transmission = fields.Selection([('manual', 'Manual'), ('automatic', 'Automatic')], 'Transmisi', help='Transmission Used by the vehicle')
+    fuel_type = fields.Selection([('gasoline', 'Gasoline'), ('diesel', 'Diesel'), ('electric', 'Electric'), ('hybrid', 'Hybrid')], 'Bahan Bakar', help='Fuel Used by the vehicle')
     horsepower = fields.Integer()
     horsepower_tax = fields.Float('Horsepower Taxation')
     power = fields.Integer('Power', help='Power in kW of the vehicle')
@@ -185,10 +206,10 @@ class FleetVehicle(models.Model):
     contract_renewal_total = fields.Text(compute='_compute_contract_reminder', string='Total of contracts due or overdue minus one', multi='contract_info')
     car_value = fields.Float(help='Value of the bought vehicle')
 
-    @api.depends('model_id', 'license_plate')
-    def _compute_vehicle_name(self):
-        for record in self:
-            record.name = record.model_id.brand_id.name + '/' + record.model_id.name + '/' + record.license_plate
+    # @api.depends('model_id', 'license_plate')
+    # def _compute_vehicle_name(self):
+    #     for record in self:
+    #         record.name = record.model_id.brand_id.name + '/' + record.model_id.name + '/' + record.license_plate
 
     def _get_odometer(self):
         FleetVehicalOdometer = self.env['fleet.vehicle.odometer']
@@ -362,6 +383,35 @@ class FleetVehicle(models.Model):
             domain=[('vehicle_id', '=', self.id)]
         )
         return res
+
+
+class FleetVehicleTipe(models.Model):
+    _name = 'fleet.vehicle.tipe'
+
+    name = fields.Char(string="Tipe", required=True)
+    model_id = fields.Many2one('fleet.vehicle.model', 'Merk Bus', required=True, help='Ini merk bus')
+    keterangan = fields.Char(string="Keterangan")
+
+
+
+class DokumenLine(models.Model):
+    _name = 'dokumen.line'
+    
+    name = fields.Char('Jenis Surat')
+    files = fields.Binary('File')
+    vehicle_id = fields.Many2one('fleet.vehicle', 'Vehicle', required=True)
+    
+      
+class SBUUnit(models.Model):
+    _name = 'sbu.unit'
+    
+    name = fields.Char('Nama')
+
+class SBUUnitAnak(models.Model):
+    _name = 'sbu.unit.anak'
+    
+    name = fields.Char('Nama')
+    sbu_id = fields.Many2one('sbu.unit')    
 
 class FleetVehicleOdometer(models.Model):
     _name = 'fleet.vehicle.odometer'
